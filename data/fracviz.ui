@@ -23,7 +23,7 @@
    </size>
   </property>
   <property name="windowTitle">
-   <string>PPP Ex4: Fractal Editor</string>
+   <string>Fractal Editor</string>
   </property>
   <layout class="QVBoxLayout" name="layout">
    <item>
