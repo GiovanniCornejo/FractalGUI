@@ -1,5 +1,6 @@
 from PySide2.QtUiTools import QUiLoader
 from PySide2.QtCore import QFile, QIODevice, QObject, Signal, Slot
+from PySide2.QtGui import QIntValidator
 from PySide2.QtWidgets import QWidget, QVBoxLayout, QLineEdit, QPushButton, QLabel
 
 from matplotlib import pyplot
@@ -26,7 +27,9 @@ class FractalApp(QObject):
         file: The relative path to the .UI file to load.
         """
         super().__init__()
-        self.root_widget = FractalWindow(file, self) 
+        self.root_widget = FractalWindow(file, self)
+
+        # TODO: Instantiate Mandelbrot set
 
     def update_plot(self):
         """
@@ -38,8 +41,27 @@ class FractalApp(QObject):
 
         pass
 
-    def reset_button_clicked(self):
-        print("Reset button clicked")
+    # ----------------------------------- Slots ---------------------------------- #
+
+    def reset_zoom(self):
+        """Reset visual and parameters to default."""
+        print("TODO: Reset button clicked")
+
+    def update_iterations(self):
+        """Update number of iterations on fractal set."""
+        print("TODO: Iterations changed")
+
+    def update_processes(self):
+        """Update number of processes used to execute tasks."""
+        print("TODO: Processes changed")
+
+    def update_resolution_x(self):
+        """Update x resolution (in pixels) of the image."""
+        print("TODO: Resolution X changed")
+
+    def update_resolution_y(self):
+        """Update y resolution (in pixels) of the image."""
+        print("TODO: Resolution Y changed")
 
 
 class FractalWindow(QWidget):
@@ -71,13 +93,28 @@ class FractalWindow(QWidget):
             print(loader.errorString())
             sys.exit(-1)
         
-        # Generate tree of widgets
+        # Generate tree of widgets and link widget signals to slots with input validators
         self.layout = self.get_child(self.root_widget, QVBoxLayout, "layout")
+
         self.iterations = self.get_child(self.root_widget, QLineEdit, "iterations")
+        self.iterations.editingFinished.connect(app.update_iterations)
+        self.iterations.setValidator(QIntValidator(1, 99,  self.iterations))
+
         self.processes = self.get_child(self.root_widget, QLineEdit, "processes")
+        self.processes.editingFinished.connect(app.update_processes)
+        self.processes.setValidator(QIntValidator(1, 4,  self.processes))
+
         self.resolution_x = self.get_child(self.root_widget, QLineEdit, "resolution_x")
+        self.resolution_x.editingFinished.connect(app.update_resolution_x)
+        self.resolution_x.setValidator(QIntValidator(1, 3840, self.resolution_x))
+
         self.resolution_y = self.get_child(self.root_widget, QLineEdit, "resolution_y")
+        self.resolution_y.editingFinished.connect(app.update_resolution_y)
+        self.resolution_y.setValidator(QIntValidator(1, 2160, self.resolution_y))
+
         self.reset_button = self.get_child(self.root_widget, QPushButton, "reset_button")
+        self.reset_button.clicked.connect(app.reset_zoom)
+
         self.status = self.get_child(self.root_widget, QLabel, "status")
 
         # Instantiate FigureCanvas object by creating a Figure and generating an Axes set
@@ -86,10 +123,6 @@ class FractalWindow(QWidget):
         self.axes: Axes = subplot[1]
         self.canvas = FigureCanvas(self.figure)
         self.layout.addWidget(self.canvas)
-
-        # TODO: Link widget signals to slots (methods/functions)
-        self.reset_button.clicked.connect(app.reset_button_clicked)
-
 
     def get_child(self, parent, widget_type, widget_name):
         """Helper function for retrieving child widgets"""
