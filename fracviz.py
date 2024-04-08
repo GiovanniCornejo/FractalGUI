@@ -10,6 +10,8 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 
 import sys
 
+from fractal import Mandelbrot
+
 
 class FractalApp(QObject):
     """
@@ -24,12 +26,16 @@ class FractalApp(QObject):
         updating the plotting image, and displaying it.
         
         Parameters:
-        file: The relative path to the .UI file to load.
+        `file`: The relative path to the .UI file to load.
         """
         super().__init__()
-        self.root_widget = FractalWindow(file, self)
+        self._root_widget = FractalWindow(file, self)
+        def_iterations = int(self.root_widget.iterations.text())
+        def_resolution_x = int(self.root_widget.resolution_x.text())
+        def_resolution_y = int(self.root_widget.resolution_y.text())
 
-        # TODO: Instantiate Mandelbrot set
+        self._fractal = Mandelbrot(def_resolution_x,def_resolution_y,def_iterations)
+        self.update_plot()
 
     def update_plot(self):
         """
@@ -40,6 +46,18 @@ class FractalApp(QObject):
         # TODO: Create and start a non-GUI thread for image processing
 
         pass
+
+    @property
+    def fractal(self):
+        return self._fractal
+
+    @property
+    def image(self):
+        return self._image
+    
+    @property
+    def root_widget(self):
+        return self._root_widget
 
     # ----------------------------------- Slots ---------------------------------- #
 
@@ -75,8 +93,8 @@ class FractalWindow(QWidget):
         This is also responsible for preparing all elements of the GUI.
 
         Parameters:
-        file: The relative path to the .UI file to load.
-        app: A reference to the FractalApp instance which called the constructor
+        `file`: The relative path to the .UI file to load.
+        `app`: A reference to the FractalApp instance which called the constructor
         """
         super().__init__()
 
@@ -102,7 +120,7 @@ class FractalWindow(QWidget):
 
         self.processes = self.get_child(self.root_widget, QLineEdit, "processes")
         self.processes.editingFinished.connect(app.update_processes)
-        self.processes.setValidator(QIntValidator(1, 4,  self.processes))
+        self.processes.setValidator(QIntValidator(1, 99,  self.processes))
 
         self.resolution_x = self.get_child(self.root_widget, QLineEdit, "resolution_x")
         self.resolution_x.editingFinished.connect(app.update_resolution_x)
@@ -118,11 +136,15 @@ class FractalWindow(QWidget):
         self.status = self.get_child(self.root_widget, QLabel, "status")
 
         # Instantiate FigureCanvas object by creating a Figure and generating an Axes set
-        subplot = pyplot.subplots(1)
-        self.figure = subplot[0]
-        self.axes: Axes = subplot[1]
+        subplots = pyplot.subplots(1)
+        self.figure = subplots[0]
+        self.axes: Axes = subplots[1] 
+        self.axes.set_position(pos=(0, 0, 1, 1)) # Position and size axes to fill entire figure
+        self.axes.axis("off") # Turn off axis information
         self.canvas = FigureCanvas(self.figure)
         self.layout.addWidget(self.canvas)
+
+        # TODO: Add mouse click-and-drag operations to facilitate zoom functionality
 
     def get_child(self, parent, widget_type, widget_name):
         """Helper function for retrieving child widgets"""

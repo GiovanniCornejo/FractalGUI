@@ -2,19 +2,37 @@
 # Derived from source at https://matplotlib.org/examples/showcase/mandelbrot.html
 from math import log
 from abc import ABC, abstractmethod
-import asyncio
+from multiprocessing.managers import SharedMemoryManager
 import struct
-import itertools
 
 class Fractal(ABC):
+    """The abstract Fractal class defines a standard interface for multiprocessing and display."""
+
     @abstractmethod
-    # Constructor - at a minimum, must set passed in attributes and the x and y ranges
-    def __init__(self, image_width, image_height, iterations):
+    def __init__(self, image_width: int, image_height: int, iterations: int):
+        """
+        The constructor sets up the variables, but does not complete image processing,
+        for fractal image generation, given image dimensions and a number of iterations on the set.
+
+        Parameters:
+        `image_width`: The width of the image.
+        `image_height`: The height of the image.
+        `iterations`: The number of iterations on the set.
+        """
         pass
 
-    # Generate tasks to calculate set data and return receptical image matrix
     @abstractmethod
-    def generate_tasks(self, smm, num_tasks):
+    def generate_tasks(self, smm: SharedMemoryManager, num_tasks: int):
+        """
+        This method generates the tasks necessary to process the fractal image.
+        It uses the shared memory manager to allocate shared memory blocks that can be accessed 
+        across processes (for multiprocessing). It returns a list of tasks (lambdas) and a list of 
+        shared memory blocks allocated by the object as (tasks, data).
+
+        Parameters:
+        `smm`: A SyncManager object for managing shared memory.
+        `num_tasks`: Number of tasks to process the image.
+        """
         return None, None
 
     # Properties for common traits among fractals
@@ -69,7 +87,7 @@ class Mandelbrot(Fractal):
         return [struct.unpack('d' * self.dimensions[0], row_data[:-1]) for row_data in data[3]]
 
 
-    def __init__(self, image_width, image_height, iterations):
+    def __init__(self, image_width: int, image_height: int, iterations: int):
         self.x_range = Mandelbrot._X_BOUNDARY
         self.y_range = Mandelbrot._Y_BOUNDARY
         self.dimensions = (image_width, image_height)
@@ -116,7 +134,7 @@ class Mandelbrot(Fractal):
 
 
     # Generates tasks to generate the Mandelbrot Set data and returns the receptical image matrix
-    def generate_tasks(self, smm, num_tasks):
+    def generate_tasks(self, smm: SharedMemoryManager, num_tasks: int):
         dx = (self.x_range[1] - self.x_range[0]) / (self.dimensions[0] - 1) if self.dimensions[0] > 1 else 0
         dy = (self.y_range[1] - self.y_range[0]) / (self.dimensions[1] - 1) if self.dimensions[1] > 1 else 0
         task_rows = self.dimensions[1] / num_tasks
