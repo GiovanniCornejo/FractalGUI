@@ -9,6 +9,7 @@ def main():
     set_display_to_host()
     app = QApplication(sys.argv)
     fractal_app = FractalApp("data/fracviz.ui")
+    fractal_app.root_widget.show()
     sys.exit(app.exec_())
 
 if __name__ == "__main__":
