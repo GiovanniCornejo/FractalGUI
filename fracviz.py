@@ -72,12 +72,14 @@ class FractalApp(QObject):
             image_matrix = self._fractal.data_to_image_matrix(data)
             if self._image is None:
                 self._image = self._root_widget.axes.imshow(image_matrix)
+                self._root_widget.status.setText("")
+                self._root_widget.canvas.draw()
+                self._def_xlim = self._root_widget.canvas.figure.gca().get_xlim()
+                self._def_ylim = self._root_widget.canvas.figure.gca().get_ylim()
             else:
                 self._image.set_data(image_matrix)
-            
-            # Update display
-            self._root_widget.status.setText("")
-            self._root_widget.canvas.draw()
+                self._root_widget.status.setText("")
+                self._root_widget.canvas.draw()
 
         threading.Thread(target=process_image, daemon=True).start()
 
@@ -105,6 +107,10 @@ class FractalApp(QObject):
 
         self._fractal.iterations = int(self._def_iterations)
         self._fractal.dimensions = (int(self._def_resolution_x), int(self._def_resolution_y))
+
+        self._root_widget.canvas.figure.gca().set_xlim(self._def_xlim)
+        self._root_widget.canvas.figure.gca().set_ylim(self._def_ylim)
+        self._root_widget.canvas.draw()
 
         self.update_plot()
 
