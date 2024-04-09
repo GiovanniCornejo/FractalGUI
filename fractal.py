@@ -70,6 +70,7 @@ class Fractal(ABC):
 
 
 class Mandelbrot(Fractal):
+    """Derives from the Fractal class and its methods are specific to the Mandelbrot set."""
     _X_BOUNDARY = (-2.25, 0.75)
     _Y_BOUNDARY = (-1.25, 1.25)
 
