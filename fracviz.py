@@ -211,32 +211,34 @@ class EventFilter(QObject):
         self.start_mouse_pos = None
 
     def eventFilter(self, obj, event):
-        if obj and obj == self.canvas:
-            if event.type() == QEvent.Type.MouseButtonPress:
-                if event.button() == Qt.LeftButton:
-                    self.left_mouse_pressed = True
-                    self.start_mouse_pos = event.pos()
-                elif event.button() == Qt.RightButton:
-                    self.right_mouse_pressed = True
-                    self.start_mouse_pos = event.pos()
-            elif event.type() == QEvent.Type.MouseMove:
-                if self.left_mouse_pressed:
-                    delta = event.pos() - self.start_mouse_pos
-                    self.zoom(delta)
-                    self.start_mouse_pos = event.pos()
-                elif self.right_mouse_pressed:
-                    delta = event.pos() - self.start_mouse_pos
-                    self.pan(delta)
-                    self.start_mouse_pos = event.pos()
-            elif event.type() == QEvent.Type.MouseButtonRelease:
-                if event.button() == Qt.LeftButton and self.left_mouse_pressed:
-                    delta = event.pos() - self.start_mouse_pos
-                    self.zoom(delta)
-                    self.left_mouse_pressed = False
-                elif event.button() == Qt.RightButton and self.right_mouse_pressed:
-                    delta = event.pos() - self.start_mouse_pos
-                    self.pan(delta)
-                    self.right_mouse_pressed = False
+        if not obj or obj != self.canvas:
+            return False
+        
+        if event.type() == QEvent.Type.MouseButtonPress:
+            if event.button() == Qt.LeftButton:
+                self.left_mouse_pressed = True
+                self.start_mouse_pos = event.pos()
+            elif event.button() == Qt.RightButton:
+                self.right_mouse_pressed = True
+                self.start_mouse_pos = event.pos()
+        elif event.type() == QEvent.Type.MouseMove:
+            if self.left_mouse_pressed:
+                delta = event.pos() - self.start_mouse_pos
+                self.zoom(delta)
+                self.start_mouse_pos = event.pos()
+            elif self.right_mouse_pressed:
+                delta = event.pos() - self.start_mouse_pos
+                self.pan(delta)
+                self.start_mouse_pos = event.pos()
+        elif event.type() == QEvent.Type.MouseButtonRelease:
+            if event.button() == Qt.LeftButton and self.left_mouse_pressed:
+                delta = event.pos() - self.start_mouse_pos
+                self.zoom(delta)
+                self.left_mouse_pressed = False
+            elif event.button() == Qt.RightButton and self.right_mouse_pressed:
+                delta = event.pos() - self.start_mouse_pos
+                self.pan(delta)
+                self.right_mouse_pressed = False
 
         return False
     
@@ -262,7 +264,6 @@ class EventFilter(QObject):
         self.canvas.figure.gca().set_xlim(new_xlim)
         self.canvas.figure.gca().set_ylim(new_ylim)
         
-        # Redraw canvas
         self.canvas.draw()
 
     def pan(self, delta):
@@ -283,5 +284,4 @@ class EventFilter(QObject):
         self.canvas.figure.gca().set_xlim(new_xlim)
         self.canvas.figure.gca().set_ylim(new_ylim)
 
-        # Redraw canvas
         self.canvas.draw()
