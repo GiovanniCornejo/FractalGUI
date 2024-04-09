@@ -12,6 +12,7 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 import sys
 from multiprocessing import Process
 from multiprocessing.managers import SharedMemoryManager
+import threading
 
 from fractal import Mandelbrot
 
@@ -54,38 +55,36 @@ class FractalApp(QObject):
         """
         self._root_widget.status.setText("Calculating set...")
 
-        # Non-GUI thread should generate fractal tasks using process count
-        num_tasks = int(self._root_widget.processes.text())
-        with SharedMemoryManager() as smm:
-            tasks, data = self._fractal.generate_tasks(smm, num_tasks)
+        # Create and start a non-GUI thread for image processing so that the GUI does not freeze
+        def process_image():
+            num_tasks = int(self._root_widget.processes.text())
+            with SharedMemoryManager() as smm:
+                tasks, data = self._fractal.generate_tasks(smm, num_tasks)
 
-        # Non-GUI thread should create appropriate number of processes to execute tasks.
-        processes = [Process(target=task) for task in tasks]
+            # Non-GUI thread should create appropriate number of processes to execute tasks.
+            processes = [Process(target=task) for task in tasks]
 
-        # The processes should start but take care that no task runs more than once.
-        for p in processes:
-            p.start()
-        
-        # Non-GUI thread should should wait for all tasks to be completed.
-        for p in processes:
-            p.join()
+            # The processes should start but take care that no task runs more than once.
+            for p in processes:
+                p.start()
+            
+            # Non-GUI thread should should wait for all tasks to be completed.
+            for p in processes:
+                p.join()
 
-        
-        # Non-GUI thread should get updated image data and update the AxesImage object.
-        image_matrix = self._fractal.data_to_image_matrix(data)
+            
+            # Non-GUI thread should get updated image data and update the AxesImage object.
+            image_matrix = self._fractal.data_to_image_matrix(data)
 
-        if self._image is None:
-            self._image = self._root_widget.axes.imshow(image_matrix)
-        else:
-            self._image.set_data(image_matrix)
-        
-        self._root_widget.status.setText("")
-        self._root_widget._canvas.draw()
-        print("Done")
+            if self._image is None:
+                self._image = self._root_widget.axes.imshow(image_matrix)
+            else:
+                self._image.set_data(image_matrix)
+            
+            self._root_widget.status.setText("")
+            self._root_widget._canvas.draw()
 
-    def update_processes(self):
-        """Update the plot with the changed process count."""
-        self.update_plot()
+        threading.Thread(target=process_image, daemon=True).start()
 
     def update_iterations(self):
         """Update the plot with the changed iterations count."""
@@ -166,7 +165,7 @@ class FractalWindow(QWidget):
         self._iterations.setValidator(QIntValidator(1, 99,  self._iterations))
 
         self._processes = self.get_child(self, QLineEdit, "processes")
-        self._processes.returnPressed.connect(app.update_processes)
+        self._processes.returnPressed.connect(app.update_plot)
         self._processes.setValidator(QIntValidator(1, 99,  self._processes))
 
         self._resolution_x = self.get_child(self, QLineEdit, "resolution_x")
