@@ -1,11 +1,10 @@
 from PySide2.QtUiTools import QUiLoader
-from PySide2.QtCore import QFile, QIODevice, QObject
+from PySide2.QtCore import QFile, QIODevice, QObject, Qt, QEvent
 from PySide2.QtGui import QIntValidator
 from PySide2.QtWidgets import QWidget, QVBoxLayout, QLineEdit, QPushButton, QLabel
 
 from matplotlib import pyplot
 from matplotlib.axes import Axes
-from matplotlib.image import AxesImage
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 
@@ -188,7 +187,9 @@ class FractalWindow(QWidget):
         self._canvas = FigureCanvas(self.figure)
         self._layout.addWidget(self.canvas)
 
-        # TODO: Add mouse click-and-drag operations to facilitate zoom functionality
+        # Add mouse click-and-drag operations to facilitate zoom functionality
+        self._eventfilter = EventFilter(self._canvas)
+        self._canvas.installEventFilter(self._eventfilter)
 
     def get_child(self, parent, widget_type, widget_name):
         """Helper function for retrieving child widgets"""
@@ -272,3 +273,51 @@ class FractalWindow(QWidget):
     @figure.setter
     def figure(self, figure: Figure):
         self._figure = figure
+
+class EventFilter(QObject):
+    def __init__(self, canvas):
+        super().__init__()
+        self.canvas = canvas
+        self.mouse_pressed = False
+        self.start_mouse_pos = None
+
+    def eventFilter(self, obj, event):
+        if obj and obj == self.canvas:
+            if event.type() == QEvent.Type.MouseButtonPress:
+                self.mouse_pressed = True
+                self.start_mouse_pos = event.pos()
+            elif event.type() == QEvent.Type.MouseMove and self.mouse_pressed:
+                delta = event.pos() - self.start_mouse_pos
+                self.zoom(delta)
+            elif event.type() == QEvent.Type.MouseButtonRelease:
+                if self.mouse_pressed:
+                    delta = event.pos() - self.start_mouse_pos
+                    self.zoom(delta)
+                self.mouse_pressed = False
+
+        return False
+    
+    def zoom(self, delta):
+        """Zoom the plot."""
+        zoom_speed = 0.001  # Adjust this value to control zoom speed
+        zoom_factor = 1.0 + zoom_speed * delta.y()
+        zoom_factor = max(0.1, min(zoom_factor, 10.0))  # Limit zoom factor within reasonable bounds
+        
+        # Get current axis limits
+        xlim = self.canvas.figure.gca().get_xlim()
+        ylim = self.canvas.figure.gca().get_ylim()
+        
+        # Calculate new axis limits
+        x_center = (xlim[0] + xlim[1]) / 2
+        y_center = (ylim[0] + ylim[1]) / 2
+        new_width = (xlim[1] - xlim[0]) / zoom_factor
+        new_height = (ylim[1] - ylim[0]) / zoom_factor
+        new_xlim = [x_center - new_width / 2, x_center + new_width / 2]
+        new_ylim = [y_center - new_height / 2, y_center + new_height / 2]
+        
+        # Set new axis limits
+        self.canvas.figure.gca().set_xlim(new_xlim)
+        self.canvas.figure.gca().set_ylim(new_ylim)
+        
+        # Redraw canvas
+        self.canvas.draw()
