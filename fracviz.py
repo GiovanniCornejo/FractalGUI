@@ -169,11 +169,11 @@ class FractalWindow(QWidget):
 
         self._resolution_x = self.get_child(self, QLineEdit, "resolution_x")
         self._resolution_x.returnPressed.connect(app.update_resolution_x)
-        self._resolution_x.setValidator(QIntValidator(1, 3840, self._resolution_x))
+        self._resolution_x.setValidator(QIntValidator(1, 9999, self._resolution_x))
 
         self._resolution_y = self.get_child(self, QLineEdit, "resolution_y")
         self._resolution_y.returnPressed.connect(app.update_resolution_y)
-        self._resolution_y.setValidator(QIntValidator(1, 2160, self._resolution_y))
+        self._resolution_y.setValidator(QIntValidator(1, 9999, self._resolution_y))
 
         self._reset_button = self.get_child(self, QPushButton, "reset_button")
         self._reset_button.pressed.connect(app.reset)
@@ -278,22 +278,37 @@ class EventFilter(QObject):
     def __init__(self, canvas):
         super().__init__()
         self.canvas = canvas
-        self.mouse_pressed = False
+        self.left_mouse_pressed = False
+        self.right_mouse_pressed = False
         self.start_mouse_pos = None
 
     def eventFilter(self, obj, event):
         if obj and obj == self.canvas:
             if event.type() == QEvent.Type.MouseButtonPress:
-                self.mouse_pressed = True
-                self.start_mouse_pos = event.pos()
-            elif event.type() == QEvent.Type.MouseMove and self.mouse_pressed:
-                delta = event.pos() - self.start_mouse_pos
-                self.zoom(delta)
-            elif event.type() == QEvent.Type.MouseButtonRelease:
-                if self.mouse_pressed:
+                if event.button() == Qt.LeftButton:
+                    self.left_mouse_pressed = True
+                    self.start_mouse_pos = event.pos()
+                elif event.button() == Qt.RightButton:
+                    self.right_mouse_pressed = True
+                    self.start_mouse_pos = event.pos()
+            elif event.type() == QEvent.Type.MouseMove:
+                if self.left_mouse_pressed:
                     delta = event.pos() - self.start_mouse_pos
                     self.zoom(delta)
-                self.mouse_pressed = False
+                    self.start_mouse_pos = event.pos()
+                elif self.right_mouse_pressed:
+                    delta = event.pos() - self.start_mouse_pos
+                    self.pan(delta)
+                    self.start_mouse_pos = event.pos()
+            elif event.type() == QEvent.Type.MouseButtonRelease:
+                if event.button() == Qt.LeftButton and self.left_mouse_pressed:
+                    delta = event.pos() - self.start_mouse_pos
+                    self.zoom(delta)
+                    self.left_mouse_pressed = False
+                elif event.button() == Qt.RightButton and self.right_mouse_pressed:
+                    delta = event.pos() - self.start_mouse_pos
+                    self.pan(delta)
+                    self.right_mouse_pressed = False
 
         return False
     
@@ -314,6 +329,27 @@ class EventFilter(QObject):
         new_height = (ylim[1] - ylim[0]) / zoom_factor
         new_xlim = [x_center - new_width / 2, x_center + new_width / 2]
         new_ylim = [y_center - new_height / 2, y_center + new_height / 2]
+        
+        # Set new axis limits
+        self.canvas.figure.gca().set_xlim(new_xlim)
+        self.canvas.figure.gca().set_ylim(new_ylim)
+        
+        # Redraw canvas
+        self.canvas.draw()
+
+    def pan(self, delta):
+        """Pan the plot."""
+        pan_speed = 0.1  # Adjust this value to control pan speed
+        x_pan = -pan_speed * delta.x()
+        y_pan = pan_speed * delta.y()
+        
+        # Get current axis limits
+        xlim = self.canvas.figure.gca().get_xlim()
+        ylim = self.canvas.figure.gca().get_ylim()
+        
+        # Calculate new axis limits
+        new_xlim = [xlim[0] + x_pan, xlim[1] + x_pan]
+        new_ylim = [ylim[0] - y_pan, ylim[1] - y_pan]
         
         # Set new axis limits
         self.canvas.figure.gca().set_xlim(new_xlim)
