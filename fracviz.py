@@ -169,11 +169,11 @@ class FractalWindow(QWidget):
 
         self._resolution_x = self.get_child(self, QLineEdit, "resolution_x")
         self._resolution_x.returnPressed.connect(app.update_resolution_x)
-        self._resolution_x.setValidator(QIntValidator(1, 9999, self._resolution_x))
+        self._resolution_x.setValidator(QIntValidator(1, 4096, self._resolution_x))
 
         self._resolution_y = self.get_child(self, QLineEdit, "resolution_y")
         self._resolution_y.returnPressed.connect(app.update_resolution_y)
-        self._resolution_y.setValidator(QIntValidator(1, 9999, self._resolution_y))
+        self._resolution_y.setValidator(QIntValidator(1, 2160, self._resolution_y))
 
         self._reset_button = self.get_child(self, QPushButton, "reset_button")
         self._reset_button.pressed.connect(app.reset)
@@ -339,21 +339,21 @@ class EventFilter(QObject):
 
     def pan(self, delta):
         """Pan the plot."""
-        pan_speed = 0.1  # Adjust this value to control pan speed
-        x_pan = -pan_speed * delta.x()
-        y_pan = pan_speed * delta.y()
-        
         # Get current axis limits
         xlim = self.canvas.figure.gca().get_xlim()
         ylim = self.canvas.figure.gca().get_ylim()
-        
-        # Calculate new axis limits
-        new_xlim = [xlim[0] + x_pan, xlim[1] + x_pan]
-        new_ylim = [ylim[0] - y_pan, ylim[1] - y_pan]
-        
+
+        # Calculate the distance covered by the mouse movement
+        x_pan_distance = -delta.x() * (xlim[1] - xlim[0]) / self.canvas.width()
+        y_pan_distance = delta.y() * (ylim[1] - ylim[0]) / self.canvas.height()
+
+        # Calculate the new axis limits
+        new_xlim = [xlim[0] + x_pan_distance, xlim[1] + x_pan_distance]
+        new_ylim = [ylim[0] + y_pan_distance, ylim[1] + y_pan_distance]
+
         # Set new axis limits
         self.canvas.figure.gca().set_xlim(new_xlim)
         self.canvas.figure.gca().set_ylim(new_ylim)
-        
+
         # Redraw canvas
         self.canvas.draw()
