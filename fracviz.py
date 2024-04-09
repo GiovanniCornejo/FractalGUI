@@ -23,8 +23,8 @@ class FractalApp(QObject):
 
     def __init__(self, file: str):
         """
-        Creates a FractalWindow widget from a .UI file and instantiates the Mandelbrot set using default values from the GUI.
-        The plotting image is updated and displayed.
+        Creates a FractalWindow widget from a .UI file and instantiates the Mandelbrot set 
+        using default values from the GUI. The plotting image is updated and displayed.
         
         Parameters:
         `file`: The relative path to the .UI file to load.
@@ -32,6 +32,7 @@ class FractalApp(QObject):
         super().__init__()
         
         self._root_widget = FractalWindow(file, self)
+        
         # Store defaults
         self._def_iterations = self._root_widget.iterations.text()
         self._def_processes = self._root_widget.processes.text()
@@ -60,28 +61,23 @@ class FractalApp(QObject):
             with SharedMemoryManager() as smm:
                 tasks, data = self._fractal.generate_tasks(smm, num_tasks)
 
-            # Non-GUI thread should create appropriate number of processes to execute tasks.
+            # Create and start appropriate number of processes to execute tasks.
             processes = [Process(target=task) for task in tasks]
-
-            # The processes should start but take care that no task runs more than once.
             for p in processes:
                 p.start()
-            
-            # Non-GUI thread should should wait for all tasks to be completed.
             for p in processes:
                 p.join()
 
-            
-            # Non-GUI thread should get updated image data and update the AxesImage object.
+            # Get updated image data and update the AxesImage object.
             image_matrix = self._fractal.data_to_image_matrix(data)
-
             if self._image is None:
                 self._image = self._root_widget.axes.imshow(image_matrix)
             else:
                 self._image.set_data(image_matrix)
             
+            # Update display
             self._root_widget.status.setText("")
-            self._root_widget._canvas.draw()
+            self._root_widget.canvas.draw()
 
         threading.Thread(target=process_image, daemon=True).start()
 
@@ -101,7 +97,7 @@ class FractalApp(QObject):
         self.update_plot()
 
     def reset(self):
-        """Reset parameters to default values then update plot."""
+        """Reset visuals and parameters to default values then update plot."""
         self._root_widget.iterations.setText(self._def_iterations)
         self._root_widget.processes.setText(self._def_processes)
         self._root_widget.resolution_x.setText(self._def_resolution_x)
@@ -157,39 +153,39 @@ class FractalWindow(QWidget):
         ui_file.close()
         
         # Generate tree of widgets and link widget signals to slots with input validators
-        self._layout = self.get_child(self, QVBoxLayout, "layout")
+        self.layout = self.get_child(self, QVBoxLayout, "layout")
 
-        self._iterations = self.get_child(self, QLineEdit, "iterations")
-        self._iterations.returnPressed.connect(app.update_iterations)
-        self._iterations.setValidator(QIntValidator(1, 99,  self._iterations))
+        self.iterations = self.get_child(self, QLineEdit, "iterations")
+        self.iterations.returnPressed.connect(app.update_iterations)
+        self.iterations.setValidator(QIntValidator(1, 99,  self.iterations))
 
-        self._processes = self.get_child(self, QLineEdit, "processes")
-        self._processes.returnPressed.connect(app.update_plot)
-        self._processes.setValidator(QIntValidator(1, 99,  self._processes))
+        self.processes = self.get_child(self, QLineEdit, "processes")
+        self.processes.returnPressed.connect(app.update_plot)
+        self.processes.setValidator(QIntValidator(1, 99,  self.processes))
 
-        self._resolution_x = self.get_child(self, QLineEdit, "resolution_x")
-        self._resolution_x.returnPressed.connect(app.update_resolution_x)
-        self._resolution_x.setValidator(QIntValidator(1, 4096, self._resolution_x))
+        self.resolution_x = self.get_child(self, QLineEdit, "resolution_x")
+        self.resolution_x.returnPressed.connect(app.update_resolution_x)
+        self.resolution_x.setValidator(QIntValidator(1, 4096, self.resolution_x))
 
-        self._resolution_y = self.get_child(self, QLineEdit, "resolution_y")
-        self._resolution_y.returnPressed.connect(app.update_resolution_y)
-        self._resolution_y.setValidator(QIntValidator(1, 2160, self._resolution_y))
+        self.resolution_y = self.get_child(self, QLineEdit, "resolution_y")
+        self.resolution_y.returnPressed.connect(app.update_resolution_y)
+        self.resolution_y.setValidator(QIntValidator(1, 2160, self.resolution_y))
 
-        self._reset_button = self.get_child(self, QPushButton, "reset_button")
-        self._reset_button.pressed.connect(app.reset)
+        self.reset_button = self.get_child(self, QPushButton, "reset_button")
+        self.reset_button.pressed.connect(app.reset)
 
-        self._status = self.get_child(self, QLabel, "status")
+        self.status = self.get_child(self, QLabel, "status")
 
         # Instantiate FigureCanvas object by creating a Figure and generating an Axes set
-        self._figure, self._axes = pyplot.subplots(1)
-        self._axes.set_position([0,0,1,1]) # Position and size axes to fill entire figure
-        self._axes.set_axis_off() # Turn off axis information
-        self._canvas = FigureCanvas(self.figure)
-        self._layout.addWidget(self.canvas)
+        self.figure, self.axes = pyplot.subplots(1)
+        self.axes.set_position([0,0,1,1]) # Position and size axes to fill entire figure
+        self.axes.set_axis_off() # Turn off axis information
+        self.canvas = FigureCanvas(self.figure)
+        self.layout.addWidget(self.canvas)
 
         # Add mouse click-and-drag operations to facilitate zoom functionality
-        self._eventfilter = EventFilter(self._canvas)
-        self._canvas.installEventFilter(self._eventfilter)
+        self.eventfilter = EventFilter(self.canvas)
+        self.canvas.installEventFilter(self.eventfilter)
 
     def get_child(self, parent, widget_type, widget_name):
         """Helper function for retrieving child widgets"""
@@ -199,80 +195,6 @@ class FractalWindow(QWidget):
         else:
             print(f"Error: Widget '{widget_name}' not found or of incorrect type.")
             sys.exit(-1)
-
-    # ---------------------------- Accessors/Mutators ---------------------------- #
-
-    @property
-    def layout(self) -> QVBoxLayout:
-        return self._layout
-    
-    @layout.setter
-    def layout(self, layout: QVBoxLayout):
-        self._layout = layout
-
-    @property
-    def processes(self) -> QLineEdit:
-        return self._processes
-
-    @processes.setter
-    def processes(self, processes: QLineEdit):
-        self._processes = processes
-
-    @property
-    def iterations(self) -> QLineEdit:
-        return self._iterations
-    
-    @iterations.setter
-    def iterations(self, iterations: QLineEdit):
-        self._iterations = iterations
-
-    @property
-    def resolution_x(self) -> QLineEdit:
-        return self._resolution_x
-
-    @resolution_x.setter
-    def resolution_x(self, resolution_x: QLineEdit):
-        self._resolution_x = resolution_x
-
-    @property
-    def resolution_y(self) -> QLineEdit:
-        return self._resolution_y
-
-    @resolution_y.setter
-    def resolution_y(self, resolution_y: QLineEdit):
-        self._resolution_y = resolution_y
-
-    @property
-    def status(self) -> QLabel:
-        return self._status
-
-    @status.setter
-    def status(self, status: QLabel):
-        self._status = status
-
-    @property
-    def canvas(self) -> FigureCanvas:
-        return self._canvas
-    
-    @canvas.setter
-    def canvas(self, canvas: FigureCanvas):
-        self._canvas = canvas
-
-    @property
-    def axes(self) -> Axes:
-        return self._axes
-    
-    @axes.setter
-    def axes(self, axes: Axes):
-        self._axes = axes
-
-    @property
-    def figure(self) -> Figure:
-        return self._figure
-    
-    @figure.setter
-    def figure(self, figure: Figure):
-        self._figure = figure
 
 class EventFilter(QObject):
     def __init__(self, canvas):
