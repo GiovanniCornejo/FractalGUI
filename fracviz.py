@@ -1,51 +1,120 @@
 from PySide2.QtUiTools import QUiLoader
-from PySide2.QtCore import QFile, QIODevice, QObject, Signal, Slot
+from PySide2.QtCore import QFile, QIODevice, QObject
 from PySide2.QtGui import QIntValidator
 from PySide2.QtWidgets import QWidget, QVBoxLayout, QLineEdit, QPushButton, QLabel
 
 from matplotlib import pyplot
 from matplotlib.axes import Axes
 from matplotlib.image import AxesImage
+from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 
 import sys
+from multiprocessing import Process
+from multiprocessing.managers import SharedMemoryManager
 
 from fractal import Mandelbrot
 
 
 class FractalApp(QObject):
     """
-    Derives from QObject and is responsible for storing and updating the 
-    fractal set as well as its image representation (AxesImage).
+    Responsible for storing and updating the fractal set and its image representation.
     """
 
     def __init__(self, file: str):
         """
-        Constructor for the FractalApp class. The file is used to create the FractalWindow widget.
-        This is also responsible for instantiating the Mandelbrot set class using default values from the GUI,
-        updating the plotting image, and displaying it.
+        Creates a FractalWindow widget from a .UI file and instantiates the Mandelbrot set using default values from the GUI.
+        The plotting image is updated and displayed.
         
         Parameters:
         `file`: The relative path to the .UI file to load.
         """
         super().__init__()
+        
         self._root_widget = FractalWindow(file, self)
-        def_iterations = int(self.root_widget.iterations.text())
-        def_resolution_x = int(self.root_widget.resolution_x.text())
-        def_resolution_y = int(self.root_widget.resolution_y.text())
+        # Store defaults
+        self._def_iterations = self._root_widget.iterations.text()
+        self._def_processes = self._root_widget.processes.text()
+        self._def_resolution_x = self._root_widget.resolution_x.text()
+        self._def_resolution_y = self._root_widget.resolution_y.text()
 
-        self._fractal = Mandelbrot(def_resolution_x,def_resolution_y,def_iterations)
+        self._image = None
+        self._fractal = Mandelbrot(
+            int(self._def_resolution_x),
+            int(self._def_resolution_y),
+            int(self._def_iterations)
+        )
+        
         self.update_plot()
 
     def update_plot(self):
         """
-        Updates the AxesImage instance. It is responsible for ensuring the display is updated
-        without locking up the application by creating and starting a non-GUI thread.
+        Updates the display via the AxesImage instance by creating and starting a non-GUI thread to
+        prevent the application from locking up.
         """
+        self._root_widget.status.setText("Calculating set...")
 
-        # TODO: Create and start a non-GUI thread for image processing
+        # Non-GUI thread should generate fractal tasks using process count
+        num_tasks = int(self._root_widget.processes.text())
+        with SharedMemoryManager() as smm:
+            tasks, data = self._fractal.generate_tasks(smm, num_tasks)
 
-        pass
+        # Non-GUI thread should create appropriate number of processes to execute tasks.
+        processes = [Process(target=task) for task in tasks]
+
+        # The processes should start but take care that no task runs more than once.
+        for p in processes:
+            p.start()
+        
+        # Non-GUI thread should should wait for all tasks to be completed.
+        for p in processes:
+            p.join()
+
+        
+        # Non-GUI thread should get updated image data and update the AxesImage object.
+        image_matrix = self._fractal.data_to_image_matrix(data)
+
+        if self._image is None:
+            self._image = self._root_widget.axes.imshow(image_matrix)
+        else:
+            self._image.set_data(image_matrix)
+        
+        self._root_widget.status.setText("")
+        self._root_widget._canvas.draw()
+        print("Done")
+
+    def update_processes(self):
+        """Update the plot with the changed process count."""
+        self.update_plot()
+
+    def update_iterations(self):
+        """Update the plot with the changed iterations count."""
+        self._fractal.iterations = int(self._root_widget.iterations.text())
+        self.update_plot()
+
+    def update_resolution_x(self):
+        """Update the plot with the changed resolution x."""
+        self._fractal.dimensions = (int(self._root_widget.resolution_x.text()), self._fractal.dimensions[1])
+        self.update_plot()
+
+    def update_resolution_y(self):
+        """Update the plot with the changed resolution y."""
+        self._fractal.dimensions = (self._fractal.dimensions[0], int(self._root_widget.resolution_y.text()))
+        self.update_plot()
+
+    def reset(self):
+        """Reset parameters to default values then update plot."""
+        self._root_widget.iterations.setText(self._def_iterations)
+        self._root_widget.processes.setText(self._def_processes)
+        self._root_widget.resolution_x.setText(self._def_resolution_x)
+        self._root_widget.resolution_y.setText(self._def_resolution_y)
+
+        self._fractal.iterations = int(self._def_iterations)
+        self._fractal.dimensions = (int(self._def_resolution_x), int(self._def_resolution_y))
+
+        self.update_plot()
+
+    # --------------------------------- Accessors -------------------------------- #
 
     @property
     def fractal(self):
@@ -59,28 +128,7 @@ class FractalApp(QObject):
     def root_widget(self):
         return self._root_widget
 
-    # ----------------------------------- Slots ---------------------------------- #
-
-    def reset_zoom(self):
-        """Reset visual and parameters to default."""
-        print("TODO: Reset button clicked")
-
-    def update_iterations(self):
-        """Update number of iterations on fractal set."""
-        print("TODO: Iterations changed")
-
-    def update_processes(self):
-        """Update number of processes used to execute tasks."""
-        print("TODO: Processes changed")
-
-    def update_resolution_x(self):
-        """Update x resolution (in pixels) of the image."""
-        print("TODO: Resolution X changed")
-
-    def update_resolution_y(self):
-        """Update y resolution (in pixels) of the image."""
-        print("TODO: Resolution Y changed")
-
+# ---------------------------------------------------------------------------- #
 
 class FractalWindow(QWidget):
     """
@@ -104,45 +152,42 @@ class FractalWindow(QWidget):
             print(f"ERROR: Cannot open {file}: {ui_file.errorString()}")
             sys.exit(-1)
         
-        loader = QUiLoader(self)
-        self.root_widget = loader.load(ui_file, self)
-        ui_file.close()
-        if not self.root_widget:
+        loader = QUiLoader()
+        if not loader.load(ui_file, self):
             print(loader.errorString())
             sys.exit(-1)
+        ui_file.close()
         
         # Generate tree of widgets and link widget signals to slots with input validators
-        self.layout = self.get_child(self.root_widget, QVBoxLayout, "layout")
+        self._layout = self.get_child(self, QVBoxLayout, "layout")
 
-        self.iterations = self.get_child(self.root_widget, QLineEdit, "iterations")
-        self.iterations.editingFinished.connect(app.update_iterations)
-        self.iterations.setValidator(QIntValidator(1, 99,  self.iterations))
+        self._iterations = self.get_child(self, QLineEdit, "iterations")
+        self._iterations.returnPressed.connect(app.update_iterations)
+        self._iterations.setValidator(QIntValidator(1, 99,  self._iterations))
 
-        self.processes = self.get_child(self.root_widget, QLineEdit, "processes")
-        self.processes.editingFinished.connect(app.update_processes)
-        self.processes.setValidator(QIntValidator(1, 99,  self.processes))
+        self._processes = self.get_child(self, QLineEdit, "processes")
+        self._processes.returnPressed.connect(app.update_processes)
+        self._processes.setValidator(QIntValidator(1, 99,  self._processes))
 
-        self.resolution_x = self.get_child(self.root_widget, QLineEdit, "resolution_x")
-        self.resolution_x.editingFinished.connect(app.update_resolution_x)
-        self.resolution_x.setValidator(QIntValidator(1, 3840, self.resolution_x))
+        self._resolution_x = self.get_child(self, QLineEdit, "resolution_x")
+        self._resolution_x.returnPressed.connect(app.update_resolution_x)
+        self._resolution_x.setValidator(QIntValidator(1, 3840, self._resolution_x))
 
-        self.resolution_y = self.get_child(self.root_widget, QLineEdit, "resolution_y")
-        self.resolution_y.editingFinished.connect(app.update_resolution_y)
-        self.resolution_y.setValidator(QIntValidator(1, 2160, self.resolution_y))
+        self._resolution_y = self.get_child(self, QLineEdit, "resolution_y")
+        self._resolution_y.returnPressed.connect(app.update_resolution_y)
+        self._resolution_y.setValidator(QIntValidator(1, 2160, self._resolution_y))
 
-        self.reset_button = self.get_child(self.root_widget, QPushButton, "reset_button")
-        self.reset_button.clicked.connect(app.reset_zoom)
+        self._reset_button = self.get_child(self, QPushButton, "reset_button")
+        self._reset_button.pressed.connect(app.reset)
 
-        self.status = self.get_child(self.root_widget, QLabel, "status")
+        self._status = self.get_child(self, QLabel, "status")
 
         # Instantiate FigureCanvas object by creating a Figure and generating an Axes set
-        subplots = pyplot.subplots(1)
-        self.figure = subplots[0]
-        self.axes: Axes = subplots[1] 
-        self.axes.set_position(pos=(0, 0, 1, 1)) # Position and size axes to fill entire figure
-        self.axes.axis("off") # Turn off axis information
-        self.canvas = FigureCanvas(self.figure)
-        self.layout.addWidget(self.canvas)
+        self._figure, self._axes = pyplot.subplots(1)
+        self._axes.set_position([0,0,1,1]) # Position and size axes to fill entire figure
+        self._axes.set_axis_off() # Turn off axis information
+        self._canvas = FigureCanvas(self.figure)
+        self._layout.addWidget(self.canvas)
 
         # TODO: Add mouse click-and-drag operations to facilitate zoom functionality
 
@@ -154,3 +199,77 @@ class FractalWindow(QWidget):
         else:
             print(f"Error: Widget '{widget_name}' not found or of incorrect type.")
             sys.exit(-1)
+
+    # ---------------------------- Accessors/Mutators ---------------------------- #
+
+    @property
+    def layout(self) -> QVBoxLayout:
+        return self._layout
+    
+    @layout.setter
+    def layout(self, layout: QVBoxLayout):
+        self._layout = layout
+
+    @property
+    def processes(self) -> QLineEdit:
+        return self._processes
+
+    @processes.setter
+    def processes(self, processes: QLineEdit):
+        self._processes = processes
+
+    @property
+    def iterations(self) -> QLineEdit:
+        return self._iterations
+    
+    @iterations.setter
+    def iterations(self, iterations: QLineEdit):
+        self._iterations = iterations
+
+    @property
+    def resolution_x(self) -> QLineEdit:
+        return self._resolution_x
+
+    @resolution_x.setter
+    def resolution_x(self, resolution_x: QLineEdit):
+        self._resolution_x = resolution_x
+
+    @property
+    def resolution_y(self) -> QLineEdit:
+        return self._resolution_y
+
+    @resolution_y.setter
+    def resolution_y(self, resolution_y: QLineEdit):
+        self._resolution_y = resolution_y
+
+    @property
+    def status(self) -> QLabel:
+        return self._status
+
+    @status.setter
+    def status(self, status: QLabel):
+        self._status = status
+
+    @property
+    def canvas(self) -> FigureCanvas:
+        return self._canvas
+    
+    @canvas.setter
+    def canvas(self, canvas: FigureCanvas):
+        self._canvas = canvas
+
+    @property
+    def axes(self) -> Axes:
+        return self._axes
+    
+    @axes.setter
+    def axes(self, axes: Axes):
+        self._axes = axes
+
+    @property
+    def figure(self) -> Figure:
+        return self._figure
+    
+    @figure.setter
+    def figure(self, figure: Figure):
+        self._figure = figure

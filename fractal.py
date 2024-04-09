@@ -37,35 +37,35 @@ class Fractal(ABC):
 
     # Properties for common traits among fractals
     @property
-    def x_range(self):
+    def x_range(self) -> tuple[float, float]:
         return self._x_range
 
     @x_range.setter
-    def x_range(self, new_range):
+    def x_range(self, new_range: tuple[float, float]):
         self._x_range = new_range
 
     @property
-    def y_range(self):
+    def y_range(self) -> tuple[float, float]:
         return self._y_range
 
     @y_range.setter
-    def y_range(self, new_range):
+    def y_range(self, new_range: tuple[float, float]):
         self._y_range = new_range
 
     @property
-    def dimensions(self):
+    def dimensions(self) -> tuple[int, int]:
         return self._dimensions
 
     @dimensions.setter
-    def dimensions(self, new_dimensions):
+    def dimensions(self, new_dimensions: tuple[int, int]):
         self._dimensions = new_dimensions
 
     @property
-    def iterations(self):
+    def iterations(self) -> int:
         return self._iterations
 
     @iterations.setter
-    def iterations(self, new_iterations):
+    def iterations(self, new_iterations: int):
         self._iterations = new_iterations
 
 
